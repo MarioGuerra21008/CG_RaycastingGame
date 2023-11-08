@@ -60,13 +60,12 @@ public:
             default:
                 throw std::runtime_error("Unknown format!");
         }
-
         SDL_Color color;
         SDL_GetRGB(pixelColor, targetSurface->format, &color.r, &color.g, &color.b);
         return Color{color.r, color.g, color.b};
     }
 
-    static void render(SDL_Renderer* renderer, const std::string& key, int x, int y) {
+    static void render(SDL_Renderer* renderer, const std::string& key, int x, int y, int screenwidth = -1, int screenheight = -1) {
         auto it = imageSurfaces.find(key);
         if (it == imageSurfaces.end()) {
             throw std::runtime_error("Image key not found!");

@@ -14,13 +14,20 @@
 
 const Color B = {0, 0, 0};
 const Color W = {255, 255, 255};
+const Color myBackgroundColor = {154, 166, 161};
+const Color floorColor = {67, 77, 73};
+const Color mapColor = {67, 77, 73};
 
 const int WIDTH = 16;
 const int HEIGHT = 11;
 const int BLOCK = 50;
+
 const int SCREEN_WIDTH = WIDTH * BLOCK;
 const int SCREEN_HEIGHT = HEIGHT * BLOCK;
 
+const int blockSize = 17;
+const int mapWidth = blockSize * WIDTH;
+const int mapHeight = blockSize * HEIGHT;
 
 struct Player {
     int x;
@@ -37,17 +44,48 @@ struct Impact {
 
 class Raycaster {
 public:
-    Raycaster(SDL_Renderer* renderer)
-            : renderer(renderer) {
+    Raycaster(SDL_Renderer* renderer) : renderer(renderer) {
 
-        player.x = BLOCK + BLOCK / 2;
-        player.y = BLOCK + BLOCK / 2;
+        player.x = blockSize + blockSize / 2;
+        player.y = blockSize + blockSize / 2;
 
         player.a = M_PI / 4.0f;
         player.fov = M_PI / 3.0f;
 
         scale = 50;
         tsize = 128;
+    }
+
+    void sdlk_up(){
+        int speed = 10;
+        int newX = static_cast<int>(player.x + speed * cos(player.a));
+        int newY = static_cast<int>(player.y + speed * sin(player.a));
+
+        int newI = newX / blockSize;
+        int newJ = newY / blockSize;
+
+        if (map[newJ][newI] == ' ') {
+            player.x = newX;
+            player.y = newY;
+        }
+    }
+
+    void sdlk_down(){
+        int speed = 10;
+        // Calcula la nueva posición después de moverse hacia adelante
+        int newX = static_cast<int>(player.x - speed * cos(player.a));
+        int newY = static_cast<int>(player.y - speed * sin(player.a));
+
+        // Convierte la nueva posición en índices de matriz
+        int newI = newX / blockSize;
+        int newJ = newY / blockSize;
+
+        // Verifica si la nueva posición es un espacio en blanco en el mapa
+        if (map[newJ][newI] == ' ') {
+            // Actualiza la posición del jugador
+            player.x = newX;
+            player.y = newY;
+        }
     }
 
     void load_map(const std::string& filename) {
@@ -65,8 +103,8 @@ public:
     }
 
     void rect(int x, int y, const std::string& mapHit) {
-        for(int cx = x; cx < x + BLOCK; cx++) {
-            for(int cy = y; cy < y + BLOCK; cy++) {
+        for(int cx = x; cx < x + blockSize; cx++) {
+            for(int cy = y; cy < y + blockSize; cy++) {
                 int tx = ((cx - x) * tsize) / BLOCK;
                 int ty = ((cy - y) * tsize) / BLOCK;
 
@@ -86,15 +124,15 @@ public:
             int x = static_cast<int>(player.x + d * cos(a));
             int y = static_cast<int>(player.y + d * sin(a));
 
-            int i = static_cast<int>(x / BLOCK);
-            int j = static_cast<int>(y / BLOCK);
+            int i = static_cast<int>(x / blockSize);
+            int j = static_cast<int>(y / blockSize);
 
 
             if (map[j][i] != ' ') {
                 mapHit = map[j][i];
 
-                int hitx = x - i * BLOCK;
-                int hity = y - j * BLOCK;
+                int hitx = x - i * blockSize;
+                int hity = y - j * blockSize;
                 int maxhit;
 
                 if (hitx == 0 || hitx == BLOCK - 1) {
@@ -102,14 +140,10 @@ public:
                 } else {
                     maxhit = hitx;
                 }
-
                 tx = maxhit * tsize / BLOCK;
-
                 break;
             }
-
             point(x, y, W);
-
             d += 1;
         }
         return Impact{d, mapHit, tx};
@@ -123,53 +157,73 @@ public:
             int ty = (y - start) * tsize / h;
             Color c = ImageLoader::getPixelColor(i.mapHit, i.tx, ty);
             SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
-
             SDL_RenderDrawPoint(renderer, x, y);
         }
     }
+/*
+    bool has_won() {
+        int player_x = static_cast<int>(player.x / BLOCK);
+        int player_y = static_cast<int>(player.y / BLOCK);
 
+        if (map[player_y][player_x] == 'g') {
+            return true;
+        }
+        return false;
+    }
+
+    void draw_victory_screen() {
+        bool hasWon = false;
+        if(has_won()){
+            hasWon = true;
+            SDL_RenderClear(renderer);
+            // Dibuja la pantalla de victoria (imagen o texto)
+            ImageLoader::render(renderer, "win", 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            // Refresca el renderizador
+            SDL_RenderPresent(renderer);
+        }
+    }
+*/
     void render() {
-
         // draw left side of the screen
+        for (int i = 1; i < SCREEN_WIDTH; i++) {
+            double a = player.a + player.fov / 2.0 - player.fov * i / SCREEN_WIDTH;
+            Impact impact = cast_ray(a);
+            float d = impact.d;
 
-        for (int x = 0; x < SCREEN_WIDTH; x += BLOCK) {
-            for (int y = 0; y < SCREEN_HEIGHT; y += BLOCK) {
-                int i = static_cast<int>(x / BLOCK);
-                int j = static_cast<int>(y / BLOCK);
+            if (d == 0) {
+                std::cout << "you lose" << std::endl;
+                exit(1);
+            }
+
+            int x = i;
+            float h = static_cast<float>(SCREEN_HEIGHT)/static_cast<float>(d) * static_cast<float>(scale);
+            draw_stake(x, h, impact);
+        }
+
+
+        for (int x = 0; x < mapWidth; x += blockSize) {
+            for (int y = 0; y < mapHeight; y += blockSize) {
+                int i = static_cast<int>(x / blockSize);
+                int j = static_cast<int>(y / blockSize);
 
                 if (map[j][i] != ' ') {
                     std::string mapHit;
                     mapHit = map[j][i];
                     Color c = Color(255, 0, 0);
                     rect(x, y, mapHit);
+                } else{
+                    SDL_SetRenderDrawColor(renderer, mapColor.r, mapColor.g, mapColor.b, mapColor.a);
+                    SDL_Rect rect = {x, y, blockSize, blockSize};
+                    SDL_RenderFillRect(renderer, &rect);
                 }
             }
         }
 
-        for (int i = 1; i < SCREEN_WIDTH; i++) {
-            float a = player.a + player.fov / 2 - player.fov * i / SCREEN_WIDTH;
+        for (int i = 0; i < mapWidth; i++) {
+            float a = player.a + player.fov / 2 - player.fov * i / mapWidth;
             cast_ray(a);
         }
-
-        // draw right side of the screen
-
-        for (int i = 1; i < SCREEN_WIDTH; i++) {
-            double a = player.a + player.fov / 2.0 - player.fov * i / SCREEN_WIDTH;
-            Impact impact = cast_ray(a);
-            float d = impact.d;
-            Color c = Color(255, 0, 0);
-
-            if (d == 0) {
-                std::cout << "you lose";
-                exit(1);
-            }
-            int x = SCREEN_WIDTH + i;
-            float h = static_cast<float>(SCREEN_HEIGHT)/static_cast<float>(d) * static_cast<float>(scale);
-            draw_stake(x, h, impact);
-        }
-
     }
-
     Player player;
 private:
     int scale;
