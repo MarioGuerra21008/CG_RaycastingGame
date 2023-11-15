@@ -24,6 +24,6 @@ background music, a title screen and also a level selector. Finally, when you re
 
 ## Video
 
-You can watch a full gameplay of the game here!
+You can watch a full gameplay of the level 3 here!
 
 
